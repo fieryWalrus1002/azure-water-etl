@@ -79,15 +79,25 @@ resource dataFactory 'Microsoft.DataFactory/factories@2018-06-01' = {
   }
 }
 
-// //********************************************
-// // bring in modules for better organization and separation of concerns. Each module can have its own parameters and resources, making the main file cleaner and easier to manage.
-// //********************************************
+//********************************************
+// Modules
+//********************************************
 
-// module rbac 'rbac.bicep' = {
-//   name: 'rbac'
-//   params: {
-//     storageAccountName: storageAccountName
-//     principalId: '' // Placeholder, will be filled in after we create the ADF and Function App identities in their respective modules
-//     functionAppIdentityId: '' // Placeholder, will be filled in after we create the Function App in the compute module
-//   }
-// }
+
+// https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/scenarios-rbac
+module rbac 'modules/rbac.bicep' = {
+  name: 'rbac'
+  params: {
+    adfIdentityPrincipalId: dataFactory.identity.principalId
+    storageAccountName: storageAccount.name
+    }
+}
+
+module adfFactory 'modules/adf_factory.bicep' = {
+  name: 'adfFactory'
+  params: {
+    adfName: dataFactory.name
+    storageAccountName: storageAccount.name
+    functionAppName: '${prefix}-func-${uniqueString(resourceGroup().id)}'
+  }
+}
