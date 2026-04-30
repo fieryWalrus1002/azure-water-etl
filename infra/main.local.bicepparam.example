@@ -1,0 +1,10 @@
+// main.local.bicepparam
+// NOTE: Add this file to your .gitignore so it never reaches GitHub!
+// Acquire your own Object ID:
+// az ad signed-in-user show --query id -o tsv
+// Then deploy using:
+// az deployment group create --resource-group rg-hydroflow-dev --parameters main.local.bicepparam.
+
+using 'main.bicep'
+
+param userPrincipalId = 'insert-your-own-object-id-here'
