@@ -5,12 +5,18 @@
 
 targetScope = 'resourceGroup'
 
+
+
 //********************************************
 // Parameters
 //********************************************
-
 param location string = resourceGroup().location
 param prefix string = 'hydroflow'
+param tenantId string = subscription().tenantId
+
+// Provided from the main.local.bicepparam
+param userPrincipalId string
+
 
 @minLength(3)
 @maxLength(24)
@@ -22,11 +28,12 @@ param storageAccountName string = 'store${uniqueString(resourceGroup().id)}'
 @description('Provide the SKU name for the storage account. Must be between 3 and 24 characters. For cost-effectiveness, use Standard_LRS (Locally Redundant Storage). For higher durability and availability, consider using ZRS (Zone-Redundant Storage) or GRS (Geo-Redundant Storage).')
 param storageSkuName string = 'Standard_LRS'
 
+
 //********************************************
 // Variables
 //********************************************
 
-var exampleVariable = 'placeholderExample'
+var keyVaultName = '${prefix}-keyVault'
 
 //********************************************
 // Azure resources required by your function app.
@@ -35,7 +42,7 @@ var exampleVariable = 'placeholderExample'
 // 1. Data Lake Storage (ADLS Gen2)
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: '${prefix}store${uniqueString(resourceGroup().id)}'
+  name: storageAccountName
   location: location
   kind: 'StorageV2'
   sku: { name: storageSkuName }
@@ -81,23 +88,58 @@ resource dataFactory 'Microsoft.DataFactory/factories@2018-06-01' = {
 
 //********************************************
 // Modules
-//********************************************
+// 
+// Usage:
+// module <alias> '<path-to-file>' = {                      
+//   name: '<deployment-name>'  // shows up in Azure portal 
+// deployment history                                       
+//   params: {                                              
+//     paramName: someValue                                 
+//   }             
+// }
+//*******************************************
 
+// Create a key vault using our fancy reusable module. 
+// We can then reference the outputs (keyVaultId and keyVaultUrl) in other modules 
+// that need to access secrets, like the Function App or ADF Linked Service.
+module keyVault 'modules/keyvault.bicep' = {
+  name: 'keyVault'
+  params: { 
+    keyVaultName: keyVaultName
+    location: location
+    tenantId: tenantId
+  }
+}
+
+// The compute module does the hard work of processing
+// our data. In a real implementation, this would likely be an Azure Function App or Azure Databricks cluster, but for simplicity we just create a placeholder resource here. 
+module compute 'modules/compute.bicep' = {
+  name: 'compute_deploy'
+  params: {
+    location: location
+    prefix: prefix
+    storageAccountName: storageAccountName
+  }
+}
 
 // https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/scenarios-rbac
 module rbac 'modules/rbac.bicep' = {
   name: 'rbac'
   params: {
+    keyVaultName: keyVaultName
     adfIdentityPrincipalId: dataFactory.identity.principalId
-    storageAccountName: storageAccount.name
-    }
+    storageAccountName: storageAccountName
+    functionAppIdentityId: compute.outputs.functionAppIdentityId
+    userPrincipalId: userPrincipalId
+  }
 }
 
 module adfFactory 'modules/adf_factory.bicep' = {
   name: 'adfFactory'
   params: {
     adfName: dataFactory.name
-    storageAccountName: storageAccount.name
-    functionAppName: '${prefix}-func-${uniqueString(resourceGroup().id)}'
+    functionAppUrl: compute.outputs.functionAppUrl
+    storageAccountName: storageAccountName
   }
 }
+

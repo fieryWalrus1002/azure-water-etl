@@ -1,3 +1,7 @@
+# Azure Python Template .gitignore
+
+# Azure and bicep secrets!
+infra/main.local.bicepparam
 
 
 # Byte-compiled / optimized / DLL files
